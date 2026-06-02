@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calculateur d'albédo moyen - Méthode Berlin</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    :root {
+      --bg: #f4f6f9;
+      --card: #ffffff;
+      --text: #172033;
+      --muted: #657086;
+      --border: #dbe2ee;
+      --blue: #2563eb;
+      --blue-dark: #1d4ed8;
+      --blue-soft: #eaf1ff;
+      --red: #dc2626;
+      --red-soft: #fee2e2;
+      --orange: #f59e0b;
+      --orange-soft: #fef3c7;
+      --green: #16a34a;
+      --green-soft: #dcfce7;
+      --shadow: 0 16px 40px rgba(20, 35, 70, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    .app {
+      width: min(1180px, calc(100% - 32px));
+      margin: 32px auto 56px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #1e3a8a, #2563eb 52%, #60a5fa);
+      color: #fff;
+      border-radius: 26px;
+      padding: 30px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -80px;
+      top: -90px;
+      width: 260px;
+      height: 260px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    .hero h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.8rem, 3vw, 2.7rem);
+      letter-spacing: -0.04em;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero p {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.88);
+      max-width: 760px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .project-card,
+    .surface-card,
+    .results-panel,
+    .reference-card {
+      background: var(--card);
+      border: 1px solid rgba(219, 226, 238, 0.85);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .project-card {
+      margin-top: 22px;
+      padding: 22px;
+    }
+
+    .section-title {
+      margin: 0 0 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .section-title h2,
+    .section-title h3 {
+      margin: 0;
+      font-size: 1.16rem;
+      letter-spacing: -0.02em;
+    }
+
+    .project-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.055em;
+      color: var(--muted);
+      margin-bottom: 7px;
+    }
+
+    input,
+    select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      padding: 11px 12px;
+      outline: none;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+    }
+
+    .static-print { display: none; }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 24px 0 16px;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 11px 16px;
+      font: inherit;
+      font-weight: 750;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
+    }
+
+    .btn-primary:hover { background: var(--blue-dark); }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-danger {
+      background: var(--red-soft);
+      color: var(--red);
+      border: 1px solid #fecaca;
+    }
+
+    .btn-print {
+      display: none;
+      background: #111827;
+      color: #fff;
+    }
+
+    .surfaces {
+      display: grid;
+      gap: 14px;
+    }
+
+    .surface-card {
+      padding: 18px;
+      animation: appear 0.24s ease both;
+    }
+
+    @keyframes appear {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .surface-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 15px;
+    }
+
+    .surface-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+    }
+
+    .number-pill {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: inline-grid;
+      place-items: center;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 850;
+    }
+
+    .surface-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.9fr 1.35fr 0.7fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .badge {
+      min-width: 86px;
+      text-align: center;
+      border-radius: 999px;
+      padding: 11px 12px;
+      font-weight: 850;
+      border: 1px solid transparent;
+    }
+
+    .badge-low { background: var(--red-soft); color: var(--red); border-color: #fecaca; }
+    .badge-mid { background: var(--orange-soft); color: #b45309; border-color: #fde68a; }
+    .badge-high { background: var(--green-soft); color: var(--green); border-color: #bbf7d0; }
+    .badge-empty { background: #f1f5f9; color: #64748b; border-color: var(--border); }
+
+    .empty-state {
+      border: 2px dashed #cbd5e1;
+      border-radius: var(--radius);
+      padding: 34px 20px;
+      text-align: center;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.56);
+    }
+
+    .error-box {
+      display: none;
+      margin: 12px 0 0;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: var(--red-soft);
+      color: #991b1b;
+      border: 1px solid #fecaca;
+      font-weight: 650;
+    }
+
+    .results-panel {
+      display: none;
+      margin-top: 24px;
+      padding: 24px;
+      animation: appear 0.25s ease both;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 22px;
+      align-items: center;
+    }
+
+    .big-result {
+      padding: 22px;
+      border-radius: 20px;
+      background: linear-gradient(180deg, #f8fbff, #eef5ff);
+      border: 1px solid #dbeafe;
+    }
+
+    .result-label {
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: 0.075em;
+      font-weight: 850;
+      font-size: 0.78rem;
+    }
+
+    .result-value {
+      font-size: clamp(3rem, 8vw, 5.3rem);
+      letter-spacing: -0.065em;
+      line-height: 1;
+      margin: 10px 0 8px;
+      font-weight: 850;
+    }
+
+    .interpretation {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-weight: 850;
+      margin-top: 8px;
+    }
+
+    .gauge-wrap { padding: 10px 0; }
+
+    .gauge {
+      height: 22px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #dc2626 0%, #f59e0b 40%, #16a34a 100%);
+      position: relative;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+    }
+
+    .gauge-marker {
+      position: absolute;
+      top: -7px;
+      width: 4px;
+      height: 36px;
+      border-radius: 99px;
+      background: #111827;
+      transform: translateX(-2px);
+      box-shadow: 0 3px 8px rgba(0,0,0,0.24);
+    }
+
+    .gauge-scale {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 8px;
+      font-weight: 700;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .stat {
+      padding: 16px;
+      border-radius: 16px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.35rem;
+      letter-spacing: -0.03em;
+      margin-bottom: 4px;
+    }
+
+    .stat span { color: var(--muted); font-weight: 650; font-size: 0.86rem; }
+
+    .details-list {
+      margin-top: 24px;
+      display: grid;
+      gap: 11px;
+    }
+
+    .detail-row {
+      display: grid;
+      grid-template-columns: minmax(130px, 1fr) 2.2fr auto auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border-radius: 14px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+    }
+
+    .bar-bg {
+      height: 12px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--blue);
+    }
+
+    .print-section {
+      display: none;
+    }
+
+    .reference-card {
+      margin-top: 24px;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    details summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 20px 22px;
+      font-weight: 850;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    details summary::-webkit-details-marker { display: none; }
+
+    details summary::after {
+      content: "+";
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--blue-soft);
+      color: var(--blue);
+      display: grid;
+      place-items: center;
+      font-size: 1.2rem;
+    }
+
+    details[open] summary::after { content: "−"; }
+
+    .reference-content {
+      border-top: 1px solid var(--border);
+      padding: 18px 22px 22px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .reference-group h4 {
+      margin: 0 0 10px;
+      color: var(--blue);
+      font-size: 0.95rem;
+    }
+
+    .reference-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+
+    .reference-table th,
+    .reference-table td {
+      border-bottom: 1px solid #e5eaf2;
+      padding: 7px 4px;
+      text-align: left;
+    }
+
+    .reference-table th:last-child,
+    .reference-table td:last-child { text-align: right; font-weight: 800; }
+
+    .footer-note {
+      margin-top: 22px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    @media (max-width: 920px) {
+      .project-grid,
+      .surface-grid,
+      .results-grid,
+      .reference-content { grid-template-columns: 1fr 1fr; }
+      .surface-grid .field-name { grid-column: 1 / -1; }
+      .results-grid { align-items: stretch; }
+    }
+
+    @media (max-width: 680px) {
+      .app { width: min(100% - 20px, 1180px); margin-top: 14px; }
+      .hero { padding: 22px; border-radius: 20px; }
+      .project-grid,
+      .surface-grid,
+      .results-grid,
+      .stats,
+      .reference-content,
+      .detail-row { grid-template-columns: 1fr; }
+      .surface-header { align-items: flex-start; }
+      .button-row, .toolbar { width: 100%; }
+      button { width: 100%; }
+    }
+
+    @media print {
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+
+      @page { margin: 14mm; }
+
+      body {
+        background: #fff !important;
+        color: #111827;
+        font-size: 10.5pt;
+      }
+
+      .app {
+        width: 100%;
+        margin: 0;
+      }
+
+      .hero,
+      .project-card,
+      .surface-card,
+      .results-panel,
+      .reference-card,
+      .stat,
+      .detail-row,
+      .big-result {
+        box-shadow: none !important;
+      }
+
+      .hero {
+        padding: 18px 20px;
+        border-radius: 14px;
+      }
+
+      .hero h1 { font-size: 21pt; }
+
+      button,
+      .toolbar,
+      .btn-print,
+      .remove-button,
+      .error-box,
+      .reference-card,
+      .no-print,
+      select,
+      input {
+        display: none !important;
+      }
+
+      .static-print {
+        display: block !important;
+        min-height: 28px;
+        padding: 6px 0;
+        font-weight: 650;
+        border-bottom: 1px solid #cbd5e1;
+      }
+
+      .project-grid { grid-template-columns: repeat(5, 1fr); }
+
+      .surface-grid {
+        grid-template-columns: 1.2fr 0.9fr 1.3fr 0.7fr auto;
+      }
+
+      .surface-card {
+        page-break-inside: avoid;
+        margin-bottom: 8px;
+      }
+
+      .results-panel {
+        display: block !important;
+        page-break-inside: avoid;
+      }
+
+      .results-grid { grid-template-columns: 0.75fr 1.25fr; }
+      .result-value { font-size: 42pt; }
+      .stats { grid-template-columns: repeat(3, 1fr); }
+      .detail-row { grid-template-columns: minmax(120px, 1fr) 2fr auto auto; }
+
+      .print-section {
+        display: block !important;
+        margin-top: 18px;
+        page-break-inside: avoid;
+      }
+
+      .print-section h3 {
+        margin: 14px 0 8px;
+        font-size: 13pt;
+      }
+
+      .print-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 9.5pt;
+      }
+
+      .print-table th {
+        background: #eaf1ff;
+      }
+
+      .print-table th,
+      .print-table td {
+        border: 1px solid #cbd5e1;
+        padding: 6px 7px;
+        text-align: left;
+      }
+
+      .print-table td.num,
+      .print-table th.num { text-align: right; }
+
+      .print-formula {
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-top: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="hero">
+      <h1>Calculateur d'albédo moyen pondéré</h1>
+      <p>Méthode Berlin — Leitfaden Stadtklima, SenStadtWohn. Calcul pondéré par surfaces : Σ(αᵢ × Sᵢ) / Σ(Sᵢ).</p>
+    </header>
+
+    <section class="project-card">
+      <div class="section-title">
+        <h2>Informations projet</h2>
+      </div>
+      <div class="project-grid">
+        <div>
+          <label for="projectName">Nom du projet</label>
+          <input id="projectName" type="text" placeholder="Ex. Résidence Les Jardins" />
+          <span class="static-print" data-print-for="projectName"></span>
+        </div>
+        <div>
+          <label for="projectRef">Référence</label>
+          <input id="projectRef" type="text" placeholder="Ex. PRE-2026-001" />
+          <span class="static-print" data-print-for="projectRef"></span>
+        </div>
+        <div>
+          <label for="clientName">Maître d'ouvrage</label>
+          <input id="clientName" type="text" placeholder="Ex. Maître d'ouvrage" />
+          <span class="static-print" data-print-for="clientName"></span>
+        </div>
+        <div>
+          <label for="authorName">Rédacteur</label>
+          <input id="authorName" type="text" placeholder="Ex. Cédric Covarel" />
+          <span class="static-print" data-print-for="authorName"></span>
+        </div>
+        <div>
+          <label for="projectDate">Date</label>
+          <input id="projectDate" type="date" />
+          <span class="static-print" data-print-for="projectDate"></span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="toolbar no-print">
+        <div>
+          <h2 style="margin:0; font-size:1.18rem; letter-spacing:-0.02em;">Surfaces du projet</h2>
+          <p style="margin:4px 0 0; color:var(--muted);">Ajoutez les toitures, façades et sols extérieurs à intégrer au calcul.</p>
+        </div>
+        <div class="button-row">
+          <button class="btn-secondary" id="addSurfaceBtn" type="button">+ Ajouter une surface</button>
+          <button class="btn-secondary" id="resetBtn" type="button">Réinitialiser</button>
+          <button class="btn-primary" id="calculateBtn" type="button">Calculer l'albédo moyen</button>
+          <button class="btn-print" id="printBtn" type="button">Exporter en PDF</button>
+        </div>
+      </div>
+      <div id="errorBox" class="error-box"></div>
+      <div id="surfaces" class="surfaces"></div>
+      <div id="emptyState" class="empty-state">Aucune surface n'a encore été ajoutée. Cliquez sur « Ajouter une surface » pour commencer.</div>
+    </section>
+
+    <section id="resultsPanel" class="results-panel">
+      <div class="section-title">
+        <h2>Résultats</h2>
+      </div>
+      <div class="results-grid">
+        <div class="big-result">
+          <div class="result-label">Albédo moyen pondéré</div>
+          <div id="resultValue" class="result-value">0.000</div>
+          <div id="interpretation" class="interpretation">Interprétation</div>
+        </div>
+        <div>
+          <div class="gauge-wrap">
+            <div class="gauge" aria-label="Jauge d'albédo de 0 à 1">
+              <div id="gaugeMarker" class="gauge-marker" style="left: 0%;"></div>
+            </div>
+            <div class="gauge-scale">
+              <span>0</span><span>0.20</span><span>0.40</span><span>0.60</span><span>0.80</span><span>1</span>
+            </div>
+          </div>
+          <div class="stats">
+            <div class="stat"><strong id="totalSurfaceStat">0 m²</strong><span>Surface totale</span></div>
+            <div class="stat"><strong id="surfaceCountStat">0</strong><span>Nombre de surfaces</span></div>
+            <div class="stat"><strong id="reflectionStat">0 %</strong><span>Réflexion estimée</span></div>
+          </div>
+        </div>
+      </div>
+      <div id="detailsList" class="details-list"></div>
+    </section>
+
+    <section id="printSection" class="print-section">
+      <h3>Tableau complet des hypothèses</h3>
+      <table class="print-table">
+        <thead>
+          <tr>
+            <th>Surface</th>
+            <th>Catégorie</th>
+            <th>Matériau</th>
+            <th class="num">Surface m²</th>
+            <th class="num">α</th>
+            <th class="num">Contribution pondérée</th>
+          </tr>
+        </thead>
+        <tbody id="printHypothesesBody"></tbody>
+      </table>
+      <div class="print-formula">
+        <strong>Formule de calcul :</strong> Albédo moyen = Σ(αᵢ × Sᵢ) / Σ(Sᵢ).<br />
+        <strong>Référence :</strong> Méthode Berlin — Leitfaden Stadtklima, SenStadtWohn.
+      </div>
+    </section>
+
+    <section class="reference-card">
+      <details>
+        <summary>Table de référence des coefficients α</summary>
+        <div id="referenceContent" class="reference-content"></div>
+      </details>
+    </section>
+
+    <p class="footer-note">Les coefficients fournis sont utilisés comme hypothèses de calcul pour l'évaluation de l'albédo moyen pondéré du projet.</p>
+  </main>
+
+  <script>
+    const MATERIALS = {
+      "Toiture": [
+        ["Tuiles terre cuite", 0.10], ["Tuiles béton gris", 0.12], ["Ardoise", 0.08],
+        ["Membrane bitume noire", 0.05], ["Membrane bitume claire", 0.20], ["Zinc naturel", 0.15],
+        ["Zinc prépatiné anthracite", 0.10], ["Tôle acier galvanisé", 0.25], ["Tôle aluminium laqué blanc", 0.60],
+        ["Gravier clair", 0.30], ["Végétalisée extensive", 0.20], ["Végétalisée intensive", 0.25],
+        ["Panneau PV", 0.08], ["EPDM noir", 0.06], ["TPO/PVC blanc", 0.70]
+      ],
+      "Façade": [
+        ["Béton brut gris", 0.25], ["Béton lisse blanc", 0.50], ["Enduit blanc", 0.60],
+        ["Enduit gris", 0.30], ["Enduit ocre/beige", 0.40], ["Brique rouge", 0.25],
+        ["Brique claire", 0.40], ["Pierre calcaire", 0.45], ["Pierre grise", 0.35],
+        ["Ardoise/Pierre sombre", 0.10], ["Bardage bois naturel", 0.15], ["Bardage bois peint clair", 0.45],
+        ["Bardage métal sombre", 0.10], ["Bardage métal blanc", 0.60], ["Vitrage/mur rideau", 0.15],
+        ["Vitrage réfléchissant", 0.30], ["Composite alu blanc", 0.65], ["Composite alu gris", 0.30]
+      ],
+      "Sol extérieur": [
+        ["Asphalte neuf", 0.05], ["Asphalte vieilli", 0.12], ["Béton gris", 0.30],
+        ["Béton clair", 0.50], ["Pavés granit gris", 0.20], ["Pavés calcaire clairs", 0.40],
+        ["Dallage ardoise", 0.08], ["Gravier beige", 0.35], ["Terre battue", 0.17],
+        ["Pelouse/gazon", 0.25], ["Herbe longue", 0.20], ["Dalles alvéolées + végétation", 0.28]
+      ]
+    };
+
+    const state = {
+      nextId: 1,
+      surfaces: [],
+      lastResult: null
+    };
+
+    const surfacesEl = document.getElementById('surfaces');
+    const emptyStateEl = document.getElementById('emptyState');
+    const errorBoxEl = document.getElementById('errorBox');
+    const resultsPanelEl = document.getElementById('resultsPanel');
+    const printBtn = document.getElementById('printBtn');
+
+    function formatNumber(value, decimals = 2) {
+      return Number(value).toLocaleString('fr-FR', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      });
+    }
+
+    function formatAlpha(value) {
+      return Number(value).toFixed(2);
+    }
+
+    function getLevel(alpha) {
+      if (alpha === null || Number.isNaN(alpha)) return { text: '—', className: 'badge-empty', label: 'Non défini' };
+      if (alpha < 0.20) return { text: formatAlpha(alpha), className: 'badge-low', label: 'Sombre' };
+      if (alpha <= 0.40) return { text: formatAlpha(alpha), className: 'badge-mid', label: 'Modéré' };
+      return { text: formatAlpha(alpha), className: 'badge-high', label: 'Clair' };
+    }
+
+    function todayISO() {
+      const d = new Date();
+      const offset = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - offset * 60 * 1000);
+      return local.toISOString().slice(0, 10);
+    }
+
+    function escapeHTML(str) {
+      return String(str || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function materialOptions(category, selectedMaterial = '') {
+      const options = ['<option value="">Sélectionner un matériau</option>'];
+      MATERIALS[category].forEach(([name, alpha]) => {
+        const selected = name === selectedMaterial ? 'selected' : '';
+        options.push(`<option value="${escapeHTML(name)}" data-alpha="${alpha}" ${selected}>${escapeHTML(name)} — α ${formatAlpha(alpha)}</option>`);
+      });
+      return options.join('');
+    }
+
+    function addSurface(defaults = {}) {
+      const id = state.nextId++;
+      const surface = {
+        id,
+        name: defaults.name || '',
+        category: defaults.category || 'Toiture',
+        material: defaults.material || '',
+        area: defaults.area || ''
+      };
+      state.surfaces.push(surface);
+      renderSurfaces();
+    }
+
+    function removeSurface(id) {
+      state.surfaces = state.surfaces.filter(surface => surface.id !== id);
+      renderSurfaces();
+      hideError();
+      if (!state.surfaces.length) hideResults();
+    }
+
+    function updateSurface(id, key, value) {
+      const item = state.surfaces.find(surface => surface.id === id);
+      if (!item) return;
+      item[key] = value;
+      if (key === 'category') item.material = '';
+      renderSurfaces();
+    }
+
+    function getAlpha(category, material) {
+      const found = (MATERIALS[category] || []).find(([name]) => name === material);
+      return found ? found[1] : null;
+    }
+
+    function renderSurfaces() {
+      emptyStateEl.style.display = state.surfaces.length ? 'none' : 'block';
+      surfacesEl.innerHTML = state.surfaces.map((surface, index) => {
+        const alpha = getAlpha(surface.category, surface.material);
+        const level = getLevel(alpha);
+        return `
+          <article class="surface-card" data-id="${surface.id}">
+            <div class="surface-header">
+              <div class="surface-title"><span class="number-pill">${index + 1}</span> Surface ${index + 1}</div>
+              <button class="btn-danger remove-button" type="button" data-remove="${surface.id}">Supprimer</button>
+            </div>
+            <div class="surface-grid">
+              <div class="field-name">
+                <label>Nom de la surface</label>
+                <input type="text" value="${escapeHTML(surface.name)}" placeholder="Ex. Toiture terrasse A" data-change="name" data-id="${surface.id}" />
+                <span class="static-print">${escapeHTML(surface.name || `Surface ${index + 1}`)}</span>
+              </div>
+              <div>
+                <label>Catégorie</label>
+                <select data-change="category" data-id="${surface.id}">
+                  ${Object.keys(MATERIALS).map(category => `<option value="${category}" ${category === surface.category ? 'selected' : ''}>${category}</option>`).join('')}
+                </select>
+                <span class="static-print">${escapeHTML(surface.category)}</span>
+              </div>
+              <div>
+                <label>Matériau</label>
+                <select data-change="material" data-id="${surface.id}">
+                  ${materialOptions(surface.category, surface.material)}
+                </select>
+                <span class="static-print">${escapeHTML(surface.material || 'Non sélectionné')}</span>
+              </div>
+              <div>
+                <label>Surface m²</label>
+                <input type="number" min="0" step="0.01" value="${escapeHTML(surface.area)}" placeholder="0.00" data-change="area" data-id="${surface.id}" />
+                <span class="static-print">${surface.area ? `${formatNumber(surface.area)} m²` : '0 m²'}</span>
+              </div>
+              <div>
+                <label>Coeff. α</label>
+                <div class="badge ${level.className}" title="${level.label}">α ${level.text}</div>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function validateSurfaces() {
+      if (!state.surfaces.length) return ['Ajoutez au moins une surface avant de calculer.'];
+      const errors = [];
+      state.surfaces.forEach((surface, index) => {
+        const label = surface.name || `Surface ${index + 1}`;
+        const area = Number(surface.area);
+        if (!surface.material) errors.push(`${label} : matériau non sélectionné.`);
+        if (!Number.isFinite(area) || area <= 0) errors.push(`${label} : surface m² supérieure à 0 requise.`);
+      });
+      return errors;
+    }
+
+    function showError(messages) {
+      errorBoxEl.innerHTML = messages.map(escapeHTML).join('<br>');
+      errorBoxEl.style.display = 'block';
+    }
+
+    function hideError() {
+      errorBoxEl.style.display = 'none';
+      errorBoxEl.textContent = '';
+    }
+
+    function hideResults() {
+      resultsPanelEl.style.display = 'none';
+      printBtn.style.display = 'none';
+      document.getElementById('printHypothesesBody').innerHTML = '';
+      state.lastResult = null;
+    }
+
+    function calculate() {
+      hideError();
+      const errors = validateSurfaces();
+      if (errors.length) {
+        showError(errors);
+        hideResults();
+        return;
+      }
+
+      const rows = state.surfaces.map((surface, index) => {
+        const alpha = getAlpha(surface.category, surface.material);
+        const area = Number(surface.area);
+        const contribution = alpha * area;
+        return {
+          index: index + 1,
+          name: surface.name || `Surface ${index + 1}`,
+          category: surface.category,
+          material: surface.material,
+          area,
+          alpha,
+          contribution
+        };
+      });
+
+      const totalSurface = rows.reduce((sum, row) => sum + row.area, 0);
+      const weightedSum = rows.reduce((sum, row) => sum + row.contribution, 0);
+      const average = weightedSum / totalSurface;
+      state.lastResult = { rows, totalSurface, weightedSum, average };
+      renderResults();
+    }
+
+    function renderResults() {
+      const { rows, totalSurface, average } = state.lastResult;
+      const level = getLevel(average);
+      document.getElementById('resultValue').textContent = average.toFixed(3);
+      document.getElementById('gaugeMarker').style.left = `${Math.max(0, Math.min(100, average * 100))}%`;
+      document.getElementById('totalSurfaceStat').textContent = `${formatNumber(totalSurface)} m²`;
+      document.getElementById('surfaceCountStat').textContent = rows.length;
+      document.getElementById('reflectionStat').textContent = `${formatNumber(average * 100, 1)} %`;
+
+      const interpretation = document.getElementById('interpretation');
+      interpretation.className = `interpretation ${level.className}`;
+      interpretation.textContent = `Interprétation : ${level.label.toLowerCase()}`;
+
+      document.getElementById('detailsList').innerHTML = rows.map(row => {
+        const percent = row.area / totalSurface * 100;
+        return `
+          <div class="detail-row">
+            <strong>${escapeHTML(row.name)}</strong>
+            <div class="bar-bg"><div class="bar-fill" style="width:${percent}%;"></div></div>
+            <span>α ${formatAlpha(row.alpha)}</span>
+            <span>${formatNumber(percent, 1)} %</span>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('printHypothesesBody').innerHTML = rows.map(row => {
+        return `
+          <tr>
+            <td>${escapeHTML(row.name)}</td>
+            <td>${escapeHTML(row.category)}</td>
+            <td>${escapeHTML(row.material)}</td>
+            <td class="num">${formatNumber(row.area)}</td>
+            <td class="num">${formatAlpha(row.alpha)}</td>
+            <td class="num">${formatNumber(row.contribution, 3)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      resultsPanelEl.style.display = 'block';
+      printBtn.style.display = 'inline-flex';
+      syncPrintFields();
+    }
+
+    function syncPrintFields() {
+      document.querySelectorAll('[data-print-for]').forEach(span => {
+        const input = document.getElementById(span.dataset.printFor);
+        if (!input) return;
+        if (input.type === 'date' && input.value) {
+          const [y, m, d] = input.value.split('-');
+          span.textContent = `${d}/${m}/${y}`;
+        } else {
+          span.textContent = input.value || '—';
+        }
+      });
+    }
+
+    function resetAll() {
+      state.nextId = 1;
+      state.surfaces = [];
+      hideError();
+      hideResults();
+      renderSurfaces();
+    }
+
+    function renderReferenceTable() {
+      const container = document.getElementById('referenceContent');
+      container.innerHTML = Object.entries(MATERIALS).map(([category, materials]) => `
+        <div class="reference-group">
+          <h4>${category}</h4>
+          <table class="reference-table">
+            <thead><tr><th>Matériau</th><th>α</th></tr></thead>
+            <tbody>
+              ${materials.map(([name, alpha]) => `<tr><td>${escapeHTML(name)}</td><td>${formatAlpha(alpha)}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      `).join('');
+    }
+
+    surfacesEl.addEventListener('input', event => {
+      const target = event.target;
+      const id = Number(target.dataset.id);
+      const key = target.dataset.change;
+      if (!id || !key) return;
+      updateSurface(id, key, target.value);
+    });
+
+    surfacesEl.addEventListener('change', event => {
+      const target = event.target;
+      const id = Number(target.dataset.id);
+      const key = target.dataset.change;
+      if (!id || !key) return;
+      updateSurface(id, key, target.value);
+    });
+
+    surfacesEl.addEventListener('click', event => {
+      const removeId = event.target.dataset.remove;
+      if (removeId) removeSurface(Number(removeId));
+    });
+
+    document.getElementById('addSurfaceBtn').addEventListener('click', () => addSurface());
+    document.getElementById('resetBtn').addEventListener('click', resetAll);
+    document.getElementById('calculateBtn').addEventListener('click', calculate);
+    printBtn.addEventListener('click', () => {
+      if (!state.lastResult) calculate();
+      syncPrintFields();
+      window.print();
+    });
+
+    document.querySelectorAll('.project-card input').forEach(input => {
+      input.addEventListener('input', syncPrintFields);
+      input.addEventListener('change', syncPrintFields);
+    });
+
+    document.getElementById('projectDate').value = todayISO();
+    renderReferenceTable();
+    syncPrintFields();
+    addSurface({ name: 'Toiture principale', category: 'Toiture', material: '', area: '' });
+  </script>
+</body>
+</html>
