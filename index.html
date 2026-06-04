@@ -501,6 +501,74 @@
       font-size: 0.88rem;
     }
 
+
+    .confirm-overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(15, 23, 42, 0.48);
+      backdrop-filter: blur(5px);
+      z-index: 1000;
+    }
+
+    .confirm-overlay.is-open { display: flex; }
+
+    .confirm-modal {
+      width: min(720px, 100%);
+      max-height: min(88vh, 820px);
+      overflow: auto;
+      background: #fff;
+      border-radius: 24px;
+      border: 1px solid rgba(219, 226, 238, 0.95);
+      box-shadow: 0 30px 80px rgba(15, 23, 42, 0.28);
+      padding: 24px;
+      animation: appear 0.18s ease both;
+    }
+
+    .confirm-modal h3 {
+      margin: 0 0 8px;
+      font-size: 1.28rem;
+      letter-spacing: -0.03em;
+    }
+
+    .confirm-modal p { margin: 0 0 14px; color: var(--muted); }
+
+    .check-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin: 18px 0;
+    }
+
+    .check-card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      background: #f8fafc;
+    }
+
+    .check-card strong { display: block; margin-bottom: 8px; }
+
+    .check-card ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--text);
+    }
+
+    .check-card li { margin: 5px 0; }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 18px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
     @media (max-width: 920px) {
       .project-grid,
       .surface-grid,
@@ -522,6 +590,8 @@
       .surface-header { align-items: flex-start; }
       .button-row, .toolbar { width: 100%; }
       button { width: 100%; }
+      .check-list { grid-template-columns: 1fr; }
+      .modal-actions { flex-direction: column-reverse; }
     }
 
     @media print {
@@ -568,6 +638,7 @@
       .error-box,
       .reference-card,
       .no-print,
+      .confirm-overlay,
       select,
       input {
         display: none !important;
@@ -765,6 +836,39 @@
     <p class="footer-note">Les coefficients fournis sont utilisés comme hypothèses de calcul pour l'évaluation de l'albédo moyen pondéré du projet. Les vitrages extérieurs exposés sont inclus dans la catégorie Façade.</p>
   </main>
 
+  <div id="confirmOverlay" class="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-hidden="true">
+    <div class="confirm-modal">
+      <h3 id="confirmTitle">Avant de calculer l’albédo moyen</h3>
+      <p>Vérifiez rapidement le périmètre retenu afin que le résultat soit cohérent avec la méthode de calcul.</p>
+      <div class="check-list">
+        <div class="check-card">
+          <strong>À inclure dans le calcul</strong>
+          <ul>
+            <li>Toitures exposées : terrasses, pentes, membranes, graviers, végétalisation.</li>
+            <li>Façades exposées : enduits, béton, briques, bardages, murs rideaux.</li>
+            <li>Vitrages extérieurs : fenêtres, murs rideaux, verrières, sheds, garde-corps vitrés significatifs.</li>
+            <li>Sols extérieurs du projet : asphalte, béton, pavés, graviers, pelouses, dalles végétalisées.</li>
+          </ul>
+        </div>
+        <div class="check-card">
+          <strong>À ne pas inclure ou à traiter à part</strong>
+          <ul>
+            <li>Surfaces intérieures ou non exposées au rayonnement solaire.</li>
+            <li>Surfaces durablement masquées par un bâtiment, une casquette ou un ouvrage fixe.</li>
+            <li>Vitrages intérieurs ou éléments protégés derrière un écran permanent.</li>
+            <li>Vitrages très réfléchissants : les inclure si exposés, mais signaler le risque d’éblouissement.</li>
+          </ul>
+        </div>
+      </div>
+      <p><strong>Rappel :</strong> Albédo moyen = Σ(αᵢ × Sᵢ) / Σ(Sᵢ). Les coefficients restent des hypothèses à adapter si une fiche produit fournit une valeur plus précise.</p>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="cancelCalculateBtn" type="button">Revenir en arrière</button>
+        <button class="btn-primary" id="confirmCalculateBtn" type="button">Je confirme</button>
+      </div>
+    </div>
+  </div>
+
+
   <script>
     const MATERIALS = {
       "Toiture": [
@@ -801,6 +905,8 @@
     const errorBoxEl = document.getElementById('errorBox');
     const resultsPanelEl = document.getElementById('resultsPanel');
     const printBtn = document.getElementById('printBtn');
+    const confirmOverlayEl = document.getElementById('confirmOverlay');
+    const calculateBtn = document.getElementById('calculateBtn');
 
     function formatNumber(value, decimals = 2) {
       return Number(value).toLocaleString('fr-FR', {
@@ -869,13 +975,31 @@
       const item = state.surfaces.find(surface => surface.id === id);
       if (!item) return;
       item[key] = value;
-      if (key === 'category') item.material = '';
 
-      // Ne pas re-rendre toute la carte pendant la saisie texte/nombre :
-      // cela faisait perdre le focus et empêchait de taper plus d'une lettre.
-      if (key === 'category' || key === 'material') {
-        renderSurfaces();
+      // Important : aucune reconstruction complète de carte pendant la saisie.
+      // Les champs texte/nombre gardent donc le focus et acceptent un mot complet.
+      if (key === 'category') {
+        item.material = '';
+        updateMaterialSelect(id, item.category);
+        updateAlphaBadge(id);
       }
+      if (key === 'material') updateAlphaBadge(id);
+    }
+
+    function updateMaterialSelect(id, category) {
+      const select = surfacesEl.querySelector(`select[data-id="${id}"][data-change="material"]`);
+      if (!select) return;
+      select.innerHTML = materialOptions(category, '');
+    }
+
+    function updateAlphaBadge(id) {
+      const surface = state.surfaces.find(item => item.id === id);
+      const badge = surfacesEl.querySelector(`[data-alpha-badge="${id}"]`);
+      if (!surface || !badge) return;
+      const level = getLevel(getAlpha(surface.category, surface.material));
+      badge.className = `badge ${level.className}`;
+      badge.title = level.label;
+      badge.textContent = `α ${level.text}`;
     }
 
     function getAlpha(category, material) {
@@ -921,7 +1045,7 @@
               </div>
               <div>
                 <label>Coeff. α</label>
-                <div class="badge ${level.className}" title="${level.label}">α ${level.text}</div>
+                <div class="badge ${level.className}" title="${level.label}" data-alpha-badge="${surface.id}">α ${level.text}</div>
               </div>
             </div>
           </article>
@@ -958,7 +1082,27 @@
       state.lastResult = null;
     }
 
-    function calculate() {
+
+    function openCalculateWarning() {
+      hideError();
+      confirmOverlayEl.classList.add('is-open');
+      confirmOverlayEl.setAttribute('aria-hidden', 'false');
+      document.getElementById('confirmCalculateBtn').focus();
+    }
+
+    function closeCalculateWarning() {
+      confirmOverlayEl.classList.remove('is-open');
+      confirmOverlayEl.setAttribute('aria-hidden', 'true');
+      calculateBtn.focus();
+    }
+
+    function confirmAndCalculate() {
+      confirmOverlayEl.classList.remove('is-open');
+      confirmOverlayEl.setAttribute('aria-hidden', 'true');
+      performCalculation();
+    }
+
+    function performCalculation() {
       hideError();
       const errors = validateSurfaces();
       if (errors.length) {
@@ -1078,6 +1222,14 @@
 
     surfacesEl.addEventListener('change', event => {
       const target = event.target;
+
+      // Important : on ne traite ici que les listes déroulantes.
+      // Les champs texte/nombre sont déjà mis à jour avec l'événement input.
+      // Certains navigateurs ou assistants de saisie peuvent déclencher change
+      // pendant la composition d'un mot, ce qui reconstruisait la carte et
+      // interrompait la saisie.
+      if (target.tagName !== 'SELECT') return;
+
       const id = Number(target.dataset.id);
       const key = target.dataset.change;
       if (!id || !key) return;
@@ -1091,9 +1243,17 @@
 
     document.getElementById('addSurfaceBtn').addEventListener('click', () => addSurface());
     document.getElementById('resetBtn').addEventListener('click', resetAll);
-    document.getElementById('calculateBtn').addEventListener('click', calculate);
+    calculateBtn.addEventListener('click', openCalculateWarning);
+    document.getElementById('cancelCalculateBtn').addEventListener('click', closeCalculateWarning);
+    document.getElementById('confirmCalculateBtn').addEventListener('click', confirmAndCalculate);
+    confirmOverlayEl.addEventListener('click', event => {
+      if (event.target === confirmOverlayEl) closeCalculateWarning();
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && confirmOverlayEl.classList.contains('is-open')) closeCalculateWarning();
+    });
     printBtn.addEventListener('click', () => {
-      if (!state.lastResult) calculate();
+      if (!state.lastResult) performCalculation();
       syncPrintFields();
       window.print();
     });

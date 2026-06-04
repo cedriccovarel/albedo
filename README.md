@@ -13,6 +13,7 @@ Application web autonome pour calculer l'albédo moyen pondéré d'un projet arc
 Albédo moyen = Σ(αᵢ × Sᵢ) / Σ(Sᵢ)
 ```
 
+- Fenêtre de vérification avant calcul avec rappel des surfaces à inclure ou exclure.
 - Résultat avec jauge visuelle, interprétation automatique et statistiques.
 - Détail par surface avec contribution relative.
 - Export PDF via la fonction d'impression du navigateur.
