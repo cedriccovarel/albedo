@@ -145,6 +145,20 @@
 
     .static-print { display: none; }
 
+    .method-note {
+      margin: 0 0 16px;
+      padding: 14px 16px;
+      border: 1px solid #bfdbfe;
+      border-left: 5px solid var(--blue);
+      border-radius: 14px;
+      background: #eff6ff;
+      color: #1e3a8a;
+      font-size: 0.94rem;
+      line-height: 1.45;
+    }
+
+    .method-note strong { color: #1d4ed8; }
+
     .toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -682,6 +696,9 @@
           <button class="btn-print" id="printBtn" type="button">Exporter en PDF</button>
         </div>
       </div>
+      <div class="method-note">
+        <strong>Prise en compte des vitrages :</strong> les surfaces vitrées extérieures sont intégrées au calcul lorsqu’elles participent à l’enveloppe exposée du bâtiment : vitrages en façade, murs rideaux, verrières, sheds ou garde-corps vitrés significatifs. Ne pas intégrer les vitrages intérieurs, les surfaces durablement masquées ou les parties protégées à traiter séparément. Pour les vitrages très réfléchissants, signaler le risque d’éblouissement en remarque de projet.
+      </div>
       <div id="errorBox" class="error-box"></div>
       <div id="surfaces" class="surfaces"></div>
       <div id="emptyState" class="empty-state">Aucune surface n'a encore été ajoutée. Cliquez sur « Ajouter une surface » pour commencer.</div>
@@ -733,6 +750,7 @@
       </table>
       <div class="print-formula">
         <strong>Formule de calcul :</strong> Albédo moyen = Σ(αᵢ × Sᵢ) / Σ(Sᵢ).<br />
+        <strong>Prise en compte des vitrages :</strong> les vitrages extérieurs exposés sont intégrés au calcul lorsqu’ils participent à l’enveloppe du bâtiment. Les vitrages intérieurs, durablement masqués ou protégés peuvent être exclus ou traités à part selon le périmètre retenu. Les vitrages très réfléchissants doivent être signalés en raison du risque d’éblouissement.<br />
         <strong>Référence :</strong> Méthode Berlin — Leitfaden Stadtklima, SenStadtWohn.
       </div>
     </section>
@@ -744,7 +762,7 @@
       </details>
     </section>
 
-    <p class="footer-note">Les coefficients fournis sont utilisés comme hypothèses de calcul pour l'évaluation de l'albédo moyen pondéré du projet.</p>
+    <p class="footer-note">Les coefficients fournis sont utilisés comme hypothèses de calcul pour l'évaluation de l'albédo moyen pondéré du projet. Les vitrages extérieurs exposés sont inclus dans la catégorie Façade.</p>
   </main>
 
   <script>
@@ -852,7 +870,12 @@
       if (!item) return;
       item[key] = value;
       if (key === 'category') item.material = '';
-      renderSurfaces();
+
+      // Ne pas re-rendre toute la carte pendant la saisie texte/nombre :
+      // cela faisait perdre le focus et empêchait de taper plus d'une lettre.
+      if (key === 'category' || key === 'material') {
+        renderSurfaces();
+      }
     }
 
     function getAlpha(category, material) {

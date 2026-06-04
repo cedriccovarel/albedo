@@ -55,3 +55,7 @@ Méthode Berlin — *Leitfaden Stadtklima*, SenStadtWohn.
 ## Licence
 
 MIT — voir le fichier `LICENSE`.
+
+## Note méthodologique sur les vitrages
+
+Les surfaces vitrées extérieures sont intégrées au calcul lorsqu’elles participent à l’enveloppe exposée du bâtiment : vitrages en façade, murs rideaux, verrières, sheds ou garde-corps vitrés significatifs. Les vitrages intérieurs, durablement masqués ou protégés peuvent être exclus ou traités à part selon le périmètre retenu. Les vitrages très réfléchissants doivent être signalés en raison du risque d’éblouissement.
